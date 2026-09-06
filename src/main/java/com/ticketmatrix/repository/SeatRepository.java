@@ -14,6 +14,7 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
      * Fetch seats by event ID and optional status filter.
      */
     List<Seat> findByEventId(Long eventId);
+
     List<Seat> findByEventIdAndStatus(Long eventId, SeatStatus status);
 
     /**
