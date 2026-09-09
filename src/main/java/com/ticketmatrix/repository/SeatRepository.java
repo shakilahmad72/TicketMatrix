@@ -1,11 +1,15 @@
 package com.ticketmatrix.repository;
 
+import com.ticketmatrix.entity.Seat;
 import com.ticketmatrix.enums.SeatStatus;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SeatRepository extends JpaRepository<Seat, Long> {
