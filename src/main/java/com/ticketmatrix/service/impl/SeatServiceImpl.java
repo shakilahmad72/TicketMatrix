@@ -7,13 +7,12 @@ import com.ticketmatrix.repository.EventRepository;
 import com.ticketmatrix.repository.SeatRepository;
 import com.ticketmatrix.service.SeatService;
 import jakarta.transaction.Transactional;
-import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
-@Transactional(readOnly = true)
+@Transactional(readOnly = true) // Optimizes DB connection for read-only throughout
 public class SeatServiceImpl implements SeatService {
 
     private final SeatRepository seatRepository;
@@ -40,6 +39,12 @@ public class SeatServiceImpl implements SeatService {
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
+    }
+
+    private void validateEventExists(Long eventId) {
+        if (!eventRepository.existById(eventId)) {
+            throw new ResourceNotFoundException("Event not found with ID: " + eventId);
+        }
     }
 
     private SeatResponse mapToResponse(Seat seat) {
