@@ -28,6 +28,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
      */
     Optional<Reservation> findByReservationToken(String reservationToken);
 
+    List<Reservation> findAllByStatusAndHoldExpiresAtBefore(
+            ReservationStatus status,
+            Instant expiryThreshold
+    );
+
     /**
      * Used by HoldExpirationScheduler:
      * Finds all PENDING holds that have passed their holdExpiresAt deadline.
@@ -46,7 +51,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     @Modifying
     @Query("UPDATE Reservation r SET r.status = :expireStatus " +
             "WHERE r.status = :pendingStatus AND r.holdExpiresAt < :now")
-    int markAllExpiredReservation(
+    int markAllExpiredReservations(
             @Param("pendingStatus")ReservationStatus pendingStatus,
             @Param("expiresStatus") ReservationStatus expiredStatus,
             @Param("now") Instant now
