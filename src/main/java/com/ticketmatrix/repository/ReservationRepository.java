@@ -45,11 +45,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
      */
     @Modifying
     @Query("UPDATE Reservation r SET r.status = :expireStatus " +
-    "WHERE r.status = :pendingStatus AND r.holdExpiresAt < :now")
+            "WHERE r.status = :pendingStatus AND r.holdExpiresAt < :now")
     int markAllExpiredReservation(
             @Param("pendingStatus")ReservationStatus pendingStatus,
             @Param("expiresStatus") ReservationStatus expiredStatus,
             @Param("now") Instant now
     );
-
 }

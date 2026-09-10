@@ -45,7 +45,7 @@ public class ReservationServiceImpl implements ReservationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Seat not found with ID: " + seatId));
 
         // 2. State verification
-        if (seat.getStatus() != SeatStatus.AVILABLE) {
+        if (seat.getStatus() != SeatStatus.AVAILABLE) {
             throw new ConflictException("Seat is currently " + seat.getStatus() + " and cannot be held.");
         }
 
@@ -89,7 +89,7 @@ public class ReservationServiceImpl implements ReservationService {
         // Check if hold window has expired
         if (Instant.now().isAfter(reservation.getHoldExpiresAt())) {
             reservation.setStatus(ReservationStatus.EXPIRED);
-            reservation.getSeat().setStatus(SeatStatus.AVILABLE);
+            reservation.getSeat().setStatus(SeatStatus.AVAILABLE);
             reservationRepository.save(reservation);
             throw new ConflictException("Hold window has expired. Please select another seat.");
         }

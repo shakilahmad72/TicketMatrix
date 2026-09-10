@@ -1,7 +1,7 @@
 package com.ticketmatrix.enums;
 
 public enum SeatStatus {
-    AVILABLE,
+    AVAILABLE,
     HELD,
     BOOKED
 }

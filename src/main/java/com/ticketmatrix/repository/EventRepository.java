@@ -15,7 +15,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * Fetch upcoming active events only.
      */
-    List<Event> findByEventDataAfterOrderByEventDataAsc(Instant data);
+    List<Event> findByEventDateAfterOrderByEventDateAsc(Instant date);
 
     /**
      * Check if an event exists by ID (avoids fetching full entity).

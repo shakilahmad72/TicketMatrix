@@ -6,8 +6,8 @@ import com.ticketmatrix.enums.SeatStatus;
 import com.ticketmatrix.repository.EventRepository;
 import com.ticketmatrix.repository.SeatRepository;
 import com.ticketmatrix.service.SeatService;
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -25,7 +25,7 @@ public class SeatServiceImpl implements SeatService {
 
     @Override
     public List<SeatResponse> getSeatsByEventId(Long eventId) {
-        validateEventExits(eventId);
+        validateEventExists(eventId);
         return seatRepository.findByEventId(eventId)
                 .stream()
                 .map(this::mapToResponse)
@@ -35,17 +35,18 @@ public class SeatServiceImpl implements SeatService {
     @Override
     public List<SeatResponse> getAvailableSeatsByEventId(Long eventId) {
         validateEventExists(eventId);
-        return seatRepository.findByEventIdAndStatus(eventId, SeatStatus.AVILABLE)
+        return seatRepository.findByEventIdAndStatus(eventId, SeatStatus.AVAILABLE)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     private void validateEventExists(Long eventId) {
-        if (!eventRepository.existById(eventId)) {
+        if (!eventRepository.existsById(eventId)) {
             throw new ResourceNotFoundException("Event not found with ID: " + eventId);
         }
     }
+
 
     private SeatResponse mapToResponse(Seat seat) {
         return new SeatResponse(

@@ -51,5 +51,5 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
     /**
      * Checks if a seat number already exists for an event (prevents duplicates).
      */
-    boolean existsByEventIdAndSeatNUmber(Long eventId, String seatNumber);
+    boolean existsByEventIdAndSeatNumber(Long eventId, String seatNumber);
 }
