@@ -1,6 +1,7 @@
 package com.ticketmatrix.controller;
 
 import com.ticketmatrix.dto.response.ApiResponse;
+import com.ticketmatrix.dto.response.EventResponse;
 import com.ticketmatrix.service.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
