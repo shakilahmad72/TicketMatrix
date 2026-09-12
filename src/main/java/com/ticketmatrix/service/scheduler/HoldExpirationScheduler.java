@@ -6,6 +6,7 @@ import com.ticketmatrix.enums.ReservationStatus;
 import com.ticketmatrix.enums.SeatStatus;
 import com.ticketmatrix.repository.ReservationRepository;
 import com.ticketmatrix.repository.SeatRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,6 +17,7 @@ import java.time.Instant;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class HoldExpirationScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(HoldExpirationScheduler.class);
@@ -23,28 +25,24 @@ public class HoldExpirationScheduler {
     private final ReservationRepository reservationRepository;
     private final SeatRepository seatRepository;
 
-    public HoldExpirationScheduler(ReservationRepository reservationRepository, SeatRepository seatRepository) {
-        this.reservationRepository = reservationRepository;
-        this.seatRepository = seatRepository;
-    }
 
     /**
-     * Executes every 30 seconds to reclaim seats with expired hold windows.
+     * Scans for expired holds every 30,000 milliseconds (30 seconds).
      */
     @Scheduled(fixedDelayString = "${ticketmatrix.scheduler.cleanup-interval-ms:30000}")
     @Transactional
     public void releasedExpiredHolds() {
         Instant now = Instant.now();
-        List<Reservation> expiredList = reservationRepository
-                .findAllByStatusAndHoldExpiresAtBefore(ReservationStatus.PENDING, now);
+        List<Reservation> expiredHolds = reservationRepository
+                .findAllExpiredPending(ReservationStatus.PENDING, now);
 
-        if (expiredList.isEmpty()) {
+        if (expiredHolds.isEmpty()) {
             return;
         }
 
-        log.info("Found {} expired reservation hold(s). Releasing seats...", expiredList.size());
+        log.info("HoldExpirationScheduler: Found {} expired hold(s) release.", expiredHolds.size());
 
-        for (Reservation reservation : expiredList) {
+        for (Reservation reservation : expiredHolds) {
             reservation.setStatus(ReservationStatus.EXPIRED);
 
             Seat seat = reservation.getSeat();
@@ -53,8 +51,8 @@ public class HoldExpirationScheduler {
             seatRepository.save(seat);
             reservationRepository.save(reservation);
 
-            log.debug("Released seat ID: {} from expired reservation token: {}",
-                    seat.getId(), reservation.getReservationToken());
+            log.debug("Restored seat ID: {} (Seat Number {}) back to AVAILABLE.",
+                    seat.getId(), seat.getSeatNumber());
         }
     }
 }

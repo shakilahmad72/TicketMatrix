@@ -2,6 +2,7 @@ package com.ticketmatrix.service.impl;
 
 import com.ticketmatrix.dto.response.SeatResponse;
 import com.ticketmatrix.enums.SeatStatus;
+import com.ticketmatrix.exception.ResourceNotFoundException;
 import com.ticketmatrix.repository.EventRepository;
 import com.ticketmatrix.repository.SeatRepository;
 import com.ticketmatrix.service.SeatService;

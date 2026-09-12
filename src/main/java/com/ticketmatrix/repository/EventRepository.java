@@ -18,11 +18,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByEventDateAfterOrderByEventDateAsc(Instant date);
 
     /**
-     * Check if an event exists by ID (avoids fetching full entity).
-     */
-    boolean existById(Long id);
-
-    /**
      * Search events by title substring (case-insensitive).
      */
     @Query("SELECT e FROM Event e WHERE LOWER(e.title) LIKE LOWER(CONCAT('%', :query, '%'))")

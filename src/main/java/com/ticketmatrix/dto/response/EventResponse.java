@@ -1,7 +1,6 @@
 package com.ticketmatrix.dto.response;
 
 import com.ticketmatrix.entity.Event;
-
 import java.time.Instant;
 
 public record EventResponse(
