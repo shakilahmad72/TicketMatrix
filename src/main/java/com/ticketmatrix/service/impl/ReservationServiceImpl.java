@@ -11,6 +11,7 @@ import com.ticketmatrix.exception.ResourceNotFoundException;
 import com.ticketmatrix.repository.ReservationRepository;
 import com.ticketmatrix.repository.SeatRepository;
 import com.ticketmatrix.service.ReservationService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class ReservationServiceImpl implements ReservationService {
 
     private static final int HOLD_DURATION_MINUTES = 10;
@@ -27,75 +29,75 @@ public class ReservationServiceImpl implements ReservationService {
     private final SeatRepository seatRepository;
     private final ReservationRepository reservationRepository;
 
-    public ReservationServiceImpl(SeatRepository seatRepository, ReservationRepository reservationRepository) {
-        this.seatRepository = seatRepository;
-        this.reservationRepository = reservationRepository;
-    }
-
     /**
-     * Acquires a row lock (PESSIMISTIC_WRITE) on the seat.
-     * Prevents race conditions when thousands of users target the exact same seat.
+     * Phase 1: Temporary Lock (Hold)
+     * Acquires a row lock using PESSIMISTIC_WRITE.
+     * Prevents duplicate holds under concurrent request spikes.
      */
+
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ReservationResponse holdSeat(Long userId, Long seatId) {
 
-        // 1. Acquire DB lock on the seat. Other concurrent transactions will block here.
+        // 1. Acquire exclusive DB lock (SELECT ... FOR UPDATE)
         Seat seat = seatRepository.findByIdWithLock(seatId)
                 .orElseThrow(() -> new ResourceNotFoundException("Seat not found with ID: " + seatId));
 
-        // 2. State verification
+        // 2. Validate current status
         if (seat.getStatus() != SeatStatus.AVAILABLE) {
-            throw new ConflictException("Seat is currently " + seat.getStatus() + " and cannot be held.");
+            throw new ConflictExcdption("Seat " + seat.getSeatNumber() + " is already " + seat.getStatus());
         }
 
-        // 3. Transition seat state
+        // 3. Mark seat as HELD
         seat.setStatus(SeatStatus.HELD);
         seatRepository.save(seat);
 
-        // 4. Generate reservation hold with expiration timestamp
-        Reservation reservation = new Reservation();
-        reservation.setReservationToken(UUID.randomUUID().toString());
-        reservation.setUserId(userId);
-        reservation.setSeat(seat);
-        reservation.setStatus(ReservationStatus.PENDING);
-        reservation.setHoldExpiresAt(Instant.now().plus(HOLD_DURATION_MINUTES, ChronoUnit.MINUTES));
+        // 4. Generate Reservation with expiration deadline
+        Reservation reservation = Reservation.builder()
+                .reservationToken(UUID.randomUUID().toString())
+                .userId(userId)
+                .seat(seat)
+                .status(ReservationStatus.PENDING)
+                .holdExpiresAt(Instant.now().plus(HOLD_TTL_MINUTES, ChronoUnit.MINUTES))
+                .build();
 
         Reservation savedReservation = reservationRepository.save(reservation);
-
-        return mapToReservationResponse(savedReservation);
+        return ReservationResponse.fromEntity(savedReservation);
     }
 
     /**
-     * Permanently commits the booking once payment completes.
+     * Phase 2: Permanent Confirmation
+     * Validates hold status, checks expiration, marks seat as BOOKED.
      */
 
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ReservationResponse confirmBooking(String reservationToken, String paymentReferenceId) {
 
-        Reservation reservation = reservationRepository.findByReservationToken(reservationToken)
-                .orElseThrow(() -> new ResourceNotFoundException("Reservation not found for provided token."));
+        // Uses JOIN FETCH query to fetch both reservation and seat in a single query
+        Reservation reservation = reservationRepository.findByReservationTokenWithSeat(reservationToken)
+                .orElseThrow(() -> new ResourceNotFoundException("No reservation found for provided token"));
 
-        // Validate state
+        // Guard: Check if already confirmed
         if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
-            throw new ConflictException("Reservation has already been confirmed.");
+            throw new ConflictException("Reservation is already confirmed.");
         }
 
+        // Guard: Must be in PENDING status
         if (reservation.getStatus() != ReservationStatus.PENDING) {
-            throw new InvalidOperationException("Reservation is " + reservation.getStatus() + " and cannot be confirmed.");
+            throw new InvalidOperationException("Cannot confirm reservation with status: " + reservation.getStatus());
         }
 
-        // Check if hold window has expired
+        // Guard: Verify hold has not expired
         if (Instant.now().isAfter(reservation.getHoldExpiresAt())) {
             reservation.setStatus(ReservationStatus.EXPIRED);
             reservation.getSeat().setStatus(SeatStatus.AVAILABLE);
             reservationRepository.save(reservation);
-            throw new ConflictException("Hold window has expired. Please select another seat.");
+            throw new ConflictException("Seat hold expired. Please initiate a new hold.");
         }
 
-        // Finalize booking
-        Seat seat = reservation.getSeat();
+        // Transition to BOOKED & CONFIRMED
+        Seat seat = reservation.getStatus();
         seat.setStatus(SeatStatus.BOOKED);
         seatRepository.save(seat);
 
@@ -103,14 +105,16 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setPaymentReferenceId(paymentReferenceId);
         reservation.setConfirmedAt(Instant.now());
 
-        Reservation confirmed = reservationRepository.save(reservation);
-        return mapToResevationResponse(confirmed);
+        Reservation saved = reservationRepository.save(reservation);
+        return ReservationResponse.fromEntity(saved);
     }
 
-    @Override
-    @Transactional
+    /**
+     * Voluntary Cancellation
+     */
+
     public void cancelHold(String reservationToken) {
-        Reservation reservation = reservationRepository.findByReservationToken(reservationToken)
+        Reservation reservation = reservationRepository.findByReservationTokenWithSeat(reservationToken)
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation not found."));
 
         if (reservation.getStatus() != ReservationStatus.PENDING) {
@@ -119,22 +123,9 @@ public class ReservationServiceImpl implements ReservationService {
 
         reservation.setStatus(ReservationStatus.CANCELLED);
         Seat seat = reservation.getSeat();
-        seat.setStatus(SeatStatus.AVILABLE);
+        seat.setStatus(SeatStatus.AVAILABLE);
 
         seatRepository.save(seat);
         reservationRepository.save(reservation);
-    }
-
-    private ReservationResponse mapToReservationResponse(Reservation res) {
-        return new ReservationResponse(
-                res.getId(),
-                res.getReservationToken(),
-                res.getUserId(),
-                res.getSeat().getId(),
-                res.getSeat().getSeatNumber(),
-                res.getStatus(),
-                res.getHoldExpiresAt(),
-                res.getPaymentReferenceId()
-        );
     }
 }
