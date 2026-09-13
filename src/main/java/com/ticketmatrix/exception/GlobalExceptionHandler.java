@@ -4,7 +4,6 @@ import com.ticketmatrix.dto.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.web.error.Error;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -85,7 +84,7 @@ public class GlobalExceptionHandler {
 
         Map<String, String> fieldErrors = new HashMap<>();
         for (FieldError filedError : ex.getBindingResult().getFieldErrors()) {
-            fieldErrors.put(filedError.getField(), fieldError.getDefaultMessage());
+            fieldErrors.put(filedError.getField(), filedError.getDefaultMessage());
         }
 
         ErrorResponse error = new ErrorResponse(
