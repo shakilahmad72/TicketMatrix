@@ -1,6 +1,6 @@
 package com.ticketmatrix.repository;
 
-import jdk.jfr.Event;
+import com.ticketmatrix.entity.Event;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

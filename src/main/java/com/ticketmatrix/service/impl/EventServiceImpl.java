@@ -46,6 +46,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public EventResponse createEvent(CreateEventRequest request) {
         Event event = new Event();
         event.setTitle(request.title());
