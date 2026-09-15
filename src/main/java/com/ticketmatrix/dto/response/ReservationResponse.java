@@ -19,12 +19,15 @@ public record ReservationResponse(
         Instant confirmedAt
 ) {
     public static ReservationResponse fromEntity(Reservation res) {
+        Long seatId = (res.getSeat() != null) ? res.getSeat().getId() : null;
+        String seatNumber = (res.getSeat() != null) ? res.getSeat().getSeatNumber() : null;
+
         return new ReservationResponse(
                 res.getId(),
                 res.getReservationToken(),
                 res.getUserId(),
-                res.getSeat().getId(),
-                res.getSeat().getSeatNumber(),
+                seatId,
+                seatNumber,
                 res.getStatus(),
                 res.getHoldExpiresAt(),
                 res.getPaymentReferenceId(),

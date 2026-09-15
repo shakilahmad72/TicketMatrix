@@ -29,13 +29,13 @@ public class Seat extends BaseEntity {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @Column(name = "seat_number", nullable = false, length = 20)
+    @Column(name = "seat_number", nullable = false, length = 10)
     private String seatNumber; // e.g., "A12", "VIP-01"
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private SeatStatus status = SeatStatus.AVILABLE;
+    private SeatStatus status = SeatStatus.AVAILABLE;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
@@ -48,6 +48,17 @@ public class Seat extends BaseEntity {
      */
     @Version
     @Column(nullable = false)
-    @Builder.Default
-    private Long version =0L;
+    private Long version;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Seat seat)) return false;
+        return getId() != null && getId().equals(seat.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

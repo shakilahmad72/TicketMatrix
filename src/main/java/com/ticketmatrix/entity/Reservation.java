@@ -24,10 +24,14 @@ import java.time.Instant;
 public class Reservation extends BaseEntity {
 
     @Column(name = "reservation_token", nullable = false, unique = true, length = 64)
-    public String reservationToken; // UUID sent to client
+    private String reservationToken; // UUID sent to client
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "seat_id", nullable = false)
+    private Seat seat;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -42,4 +46,5 @@ public class Reservation extends BaseEntity {
 
     @Column(name = "confirmed_at")
     private Instant confirmedAt;
+
 }

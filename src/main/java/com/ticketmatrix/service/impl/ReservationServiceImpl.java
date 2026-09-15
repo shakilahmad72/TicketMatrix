@@ -10,9 +10,7 @@ import com.ticketmatrix.exception.InvalidOperationException;
 import com.ticketmatrix.exception.ResourceNotFoundException;
 import com.ticketmatrix.repository.ReservationRepository;
 import com.ticketmatrix.repository.SeatRepository;
-import com.ticketmatrix.service.ReservationService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import com.ticketmatrix.service.ReservationService;import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +19,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class ReservationServiceImpl implements ReservationService {
 
     private static final int HOLD_DURATION_MINUTES = 10;
@@ -29,6 +26,11 @@ public class ReservationServiceImpl implements ReservationService {
     private final SeatRepository seatRepository;
     private final ReservationRepository reservationRepository;
 
+    // Explicit constructor eliminates any Lombok plugin / annotation processor issues
+    public ReservationServiceImpl(SeatRepository seatRepository, ReservationRepository reservationRepository) {
+        this.seatRepository = seatRepository;
+        this.reservationRepository = reservationRepository;
+    }
     /**
      * Phase 1: Temporary Lock (Hold)
      * Acquires a row lock using PESSIMISTIC_WRITE.
@@ -45,7 +47,7 @@ public class ReservationServiceImpl implements ReservationService {
 
         // 2. Validate current status
         if (seat.getStatus() != SeatStatus.AVAILABLE) {
-            throw new ConflictExcdption("Seat " + seat.getSeatNumber() + " is already " + seat.getStatus());
+            throw new ConflictException("Seat " + seat.getSeatNumber() + " is already " + seat.getStatus());
         }
 
         // 3. Mark seat as HELD
@@ -53,13 +55,12 @@ public class ReservationServiceImpl implements ReservationService {
         seatRepository.save(seat);
 
         // 4. Generate Reservation with expiration deadline
-        Reservation reservation = Reservation.builder()
-                .reservationToken(UUID.randomUUID().toString())
-                .userId(userId)
-                .seat(seat)
-                .status(ReservationStatus.PENDING)
-                .holdExpiresAt(Instant.now().plus(HOLD_TTL_MINUTES, ChronoUnit.MINUTES))
-                .build();
+        Reservation reservation = new Reservation();
+        reservation.setReservationToken(UUID.randomUUID().toString());
+        reservation.setUserId(userId);
+        reservation.setSeat(seat);
+        reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setHoldExpiresAt(Instant.now().plus(HOLD_DURATION_MINUTES, ChronoUnit.MINUTES));
 
         Reservation savedReservation = reservationRepository.save(reservation);
         return ReservationResponse.fromEntity(savedReservation);
@@ -97,7 +98,7 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         // Transition to BOOKED & CONFIRMED
-        Seat seat = reservation.getStatus();
+        Seat seat = reservation.getSeat();
         seat.setStatus(SeatStatus.BOOKED);
         seatRepository.save(seat);
 
@@ -112,7 +113,8 @@ public class ReservationServiceImpl implements ReservationService {
     /**
      * Voluntary Cancellation
      */
-
+    @Override
+    @Transactional
     public void cancelHold(String reservationToken) {
         Reservation reservation = reservationRepository.findByReservationTokenWithSeat(reservationToken)
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation not found."));
