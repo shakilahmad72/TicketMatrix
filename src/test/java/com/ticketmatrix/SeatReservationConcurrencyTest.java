@@ -1,8 +1,10 @@
 package com.ticketmatrix;
 
+import com.ticketmatrix.dto.response.ReservationResponse;
 import com.ticketmatrix.entity.Event;
 import com.ticketmatrix.entity.Seat;
 import com.ticketmatrix.enums.SeatStatus;
+import com.ticketmatrix.exception.ConflictException;
 import com.ticketmatrix.repository.EventRepository;
 import com.ticketmatrix.repository.ReservationRepository;
 import com.ticketmatrix.repository.SeatRepository;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.PessimisticLockingFailureException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,7 +22,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 
 @SpringBootTest
 class SeatReservationConcurrencyTest {
@@ -76,6 +83,66 @@ class SeatReservationConcurrencyTest {
         AtomicInteger conflictCount = new AtomicInteger(0);
         AtomicInteger unexpectedErrorCount = new AtomicInteger(0);
 
+        for (int i = 1; i <= threadCount; i++) {
+            final long userId = i; // Each thread represents a distinct user
 
+            executor.submit(() -> {
+                readyLatch.countDown(); // Announce this thread is initialized
+                try {
+                    startLatch.await(); // Hold execution until the signal is broadcast
+
+                    ReservationResponse response = reservationService.holdSeat(userId, targetSeatId);
+                    if (response != null && response.reservationToken() != null) {
+                        successCount.incrementAndGet();
+                    }
+                } catch (ConflictException | PessimisticLockingFailureException e) {
+                    // Valid expected outcomes for losing threads:
+                    // 1. ConflictException: Acquired lock, found seat status != AVAILABLE
+                    // 2. pessimisticLockingFailureException: Timed out waiting for row lock
+                    conflictCount.incrementAndGet();
+                } catch (Exception e) {
+                    unexpectedErrorCount.incrementAndGet();
+                }
+            });
+        }
+
+        // Wait for all 50 threads to be allocated and waiting
+        readyLatch.await(10, TimeUnit.SECONDS);
+
+        // Fire all thread simultaneously
+        startLatch.countDown();
+
+        // Allow execution to drain
+        executor.shutdown();
+        boolean finishedInTime = executor.awaitTermination(30, TimeUnit.SECONDS);
+
+        // 1. Thread Pool Completion
+        assertThat(finishedInTime)
+                .as("All threads must finish within the timeout limit")
+                .isTrue();
+
+        // 2. Concurrency Outcome
+        assertThat(successCount.get())
+                .as("Exactly one user must secure the seat hold")
+                .isEqualTo( 1);
+
+        assertThat(conflictCount.get())
+                .as("The other 49 threads must receive conflict or lock timeout errors")
+                .isEqualTo(threadCount - 1);
+
+        assertThat(unexpectedErrorCount.get())
+                .as("No unhandled exceptions (like NPE or DB corruption) should occur")
+                .isZero();
+
+        // 3. Database State Integrity
+        Seat seatInDb = seatRepository.findById(targetSeatId).orElseThrow();
+        assertThat(seatInDb.getStatus())
+                .as("Final seat status in DB must be HELD")
+                .isEqualTo(SeatStatus.HELD);
+
+        long reservationCount = reservationRepository.count();
+        assertThat(reservationCount)
+                .as("Exactly one reservation record should exists in the database")
+                .isEqualTo(1);
     }
 }
