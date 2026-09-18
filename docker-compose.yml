@@ -1,2 +1,13 @@
 services:
-  
+  postgres:
+    image: postgres:16-alpine
+    container_name: ticketmatrix-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ticketmatrix_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 0000
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
